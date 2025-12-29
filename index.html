@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>GEX 動態停損計算器（慢盈BUFFER版）</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1200px; margin: 50px auto; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .main-container { display: flex; gap: 30px; }
+        .calculator { flex: 1; background: rgba(255,255,255,0.1); padding: 30px; border-radius: 20px; backdrop-filter: blur(10px); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        .sidebar { flex: 0 0 350px; background: rgba(0,255,136,0.1); padding: 25px; border-radius: 20px; border-left: 5px solid #00ff88; }
+        h1 { text-align: center; margin-bottom: 30px; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        h2 { color: #00ff88; margin-top: 0; }
+        .input-group { display: flex; align-items: center; margin: 15px 0; gap: 10px; }
+        input, select { padding: 12px; border: none; border-radius: 10px; font-size: 16px; background: rgba(255,255,255,0.9); width: 120px; }
+        button { background: linear-gradient(45deg, #ff6b6b, #feca57); border: none; padding: 15px 30px; border-radius: 10px; color: white; font-size: 18px; font-weight: bold; cursor: pointer; transition: all 0.3s; margin: 20px 0; width: 100%; }
+        button:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+        .result { background: rgba(0,255,136,0.3); padding: 25px; border-radius: 15px; margin-top: 20px; border-left: 5px solid #00ff88; }
+        .stop-price { font-size: 28px; font-weight: bold; color: #00ff88; background: rgba(0,255,136,0.3); padding: 10px; border-radius: 10px; display: inline-block; }
+        .risk-table { background: rgba(255,255,255,0.2); padding: 15px; border-radius: 10px; margin: 10px 0; overflow-x: auto; }
+        .risk-table table { width: 100%; border-collapse: collapse; color: white; }
+        .risk-table th, .risk-table td { padding: 8px; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.2); }
+        .risk-table th { text-align: left; }
+        .warning { background: rgba(255,107,107,0.3); padding: 10px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #ff6b6b; }
+        .formula { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; font-family: monospace; font-size: 14px; }
+        .buffer-table { background: rgba(255,255,255,0.2); padding: 15px; border-radius: 10px; margin: 10px 0; }
+        .buffer-table table { width: 100%; border-collapse: collapse; }
+        .buffer-table th { background: rgba(0,255,136,0.3); padding: 10px; text-align: left; }
+        .buffer-table td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.2); }
+        .buffer-recommend { background: #ffeb3b; color: #333; padding: 12px; border-radius: 8px; font-weight: bold; text-align: center; margin: 10px 0; }
+        .sidebar-tip { background: rgba(255,255,255,0.1); padding: 12px; border-radius: 8px; margin: 10px 0; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- 左邊計算器 -->
+        <div class="calculator">
+            <h1>🎯 GEX 動態停損計算器</h1>
+            
+            <div class="input-group">
+                <label>合約:</label>
+                <select id="contract" onchange="updatePointValue()">
+                    <option value="MES">MES ($5/點)</option>
+                    <option value="ES">ES ($50/點)</option>
+                </select>
+            </div>
+            
+            <div class="input-group">
+                <label>現價:</label>
+                <input type="number" id="price" value="5025" step="0.25">
+            </div>
+            
+            <div class="input-group">
+                <label>ATR (點):</label>
+                <input type="number" id="atr" value="12" step="0.1">
+            </div>
+            
+            <div class="input-group">
+                <label>單筆 R 值 ($):</label>
+                <input type="number" id="risk_dollar" value="625" step="25">
+            </div>
+            
+            <div class="input-group">
+                <label>GEX 區間:</label>
+                <select id="gex_zone">
+                    <option value="pos">正GEX核心</option>
+                    <option value="trans">Transition/0GEX</option>
+                    <option value="neg">負GEX</option>
+                </select>
+            </div>
+            
+            <div class="input-group">
+                <label>交易類型:</label>
+                <select id="trade_type">
+                    <option value="revert">反轉交易</option>
+                    <option value="breakout">突破交易</option>
+                </select>
+            </div>
+            
+            <div class="input-group">
+                <label>方向:</label>
+                <select id="direction">
+                    <option value="long" selected>做多</option>
+                    <option value="short">做空</option>
+                </select>
+            </div>
+            
+            <div class="input-group">
+                <label>Buffer (點):</label>
+                <input type="number" id="buffer" value="3" step="0.1">
+            </div>
+            
+            <button onclick="calculateSL()">🚀 計算停損 & 倉位</button>
+            
+            <div id="result" class="result" style="display: none;">
+                <h3>📊 精準風控結果</h3>
+                <div id="result-content"></div>
+                <div id="risk-table" class="risk-table"></div>
+                <div id="formula" class="formula"></div>
+            </div>
+        </div>
+        
+        <!-- 右邊智慧建議區 -->
+        <div class="sidebar">
+            <h2>💡 BUFFER 慢盈建議</h2>
+            
+            <div class="buffer-recommend" id="buffer-recommend">
+                輸入參數後即時建議...
+            </div>
+            
+            <div class="buffer-table">
+                <table>
+                    <tr><th>📅 市場狀況</th><th>建議 Buffer</th></tr>
+                    <tr><td>正常交易日</td><td><strong>0-2 點</strong></td></tr>
+                    <tr><td>FOMC/ER/OPEX/數據公布</td><td><strong>3-5 點</strong></td></tr>
+                    <tr><td>開盤時段</td><td><strong>2-4 點</strong></td></tr>
+                    <tr><td>GEX關鍵位</td><td><strong>1-3 點</strong></td></tr>
+                    <tr><td>月季末周五/高波日</td><td><strong>4-6 點</strong></td></tr>
+                </table>
+            </div>
+            
+            <div class="sidebar-tip">
+                💡 <strong>快速規則：</strong><br>
+                • 周一～周四：<strong>Buffer=2</strong><br>
+                • 月季末周五/開盤時段/OPEX/高波日：<strong>Buffer=4</strong><br>
+                • FOMC/重大數據事件：<strong>Buffer=6</strong>
+            </div>
+            
+            <div class="sidebar-tip">
+                🎯 <strong>Buffer 作用：</strong><br>
+                停損距離 = GEX公式 + Buffer<br>
+                <em>多3點 = 多3點安全空間！</em>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pointValue = 5; // MES 預設
+
+        function updatePointValue() {
+            const contract = document.getElementById('contract').value;
+            pointValue = contract === 'MES' ? 5 : 50;
+            updateBufferRecommendation();
+        }
+
+        function updateBufferRecommendation() {
+            const atr = parseFloat(document.getElementById('atr').value) || 12;
+            const gexZone = document.getElementById('gex_zone').value;
+            const tradeType = document.getElementById('trade_type').value;
+            
+            let recommendation = '建議：';
+            if (gexZone === 'pos') recommendation += ' <strong>1-2點</strong> (正GEX穩定)';
+            else if (gexZone === 'neg') recommendation += ' <strong>3-5點</strong> (負GEX高波)';
+            else recommendation += ' <strong>2-4點</strong> (Transition不確定)';
+            
+            recommendation += ` | 動態：0.25×ATR(${Math.round(atr*0.25*10)/10}點)`;
+            
+            document.getElementById('buffer-recommend').innerHTML = recommendation;
+        }
+
+        function calculateSL() {
+            const price = parseFloat(document.getElementById('price').value);
+            const atr = parseFloat(document.getElementById('atr').value);
+            const riskDollar = parseFloat(document.getElementById('risk_dollar').value);
+            const gexZone = document.getElementById('gex_zone').value;
+            const tradeType = document.getElementById('trade_type').value;
+            const direction = document.getElementById('direction').value;
+            const contract = document.getElementById('contract').value;
+            const buffer = parseFloat(document.getElementById('buffer').value) || 0;
+
+            // GEX 區間寬度 (ATR倍數)
+            const zoneMultipliers = { pos: 0.8, trans: 1.2, neg: 2.0 };
+            // 停損倍數
+            const riskMultipliers = {
+                revert: { pos: 0.8, trans: 1.0, neg: 1.2 },
+                breakout: { pos: 1.0, trans: 1.2, neg: 1.5 }
+            };
+
+            const zoneWidth = zoneMultipliers[gexZone] * atr;
+            const kRisk = riskMultipliers[tradeType][gexZone];
+            const slDistance = Math.round((kRisk * atr + buffer) * 10) / 10;
+
+            // 精準倉位計算
+            const contracts = Math.max(1, Math.floor(riskDollar / (slDistance * pointValue)));
+            const actualRisk = contracts * slDistance * pointValue;
+            const perContractRisk = slDistance * pointValue;
+
+            // 【修改】確切停損價 = 進場價 ± 停損距離
+            const slPrice = direction === 'short' ? price + slDistance : price - slDistance;
+
+            // 顯示結果
+            document.getElementById('result-content').innerHTML = `
+                <p><strong>停損距離:</strong> <span style="color: #00ff88; font-size: 24px;">${slDistance} 點</span></p>
+                <p><strong>確切停損價:</strong> <span class="stop-price">${slPrice.toFixed(1)}</span></p>
+                <p><strong>建議倉位:</strong> <span style="color: #00ff88; font-size: 24px;">${contracts} ${contract} 合約</span></p>
+            `;
+
+            document.getElementById('risk-table').innerHTML = `
+                <table>
+                    <tr><th>風險項目</th><th>金額 ($)</th></tr>
+                    <tr><td>你的 R 值設定</td><td><strong>${riskDollar}</strong></td></tr>
+                    <tr><td>實際總風險</td><td style="color: ${actualRisk <= riskDollar ? '#00ff88' : '#ff6b6b'}">${actualRisk.toFixed(0)}</td></tr>
+                    <tr><td>每合約風險</td><td>${perContractRisk.toFixed(0)}</td></tr>
+                </table>
+            `;
+
+            document.getElementById('formula').innerHTML = `
+                💡 公式: ${kRisk.toFixed(1)} × ATR(${atr}) + Buffer(${buffer}) = ${slDistance}點<br>
+                📍 確切停損 = 進場價 ${direction === 'short' ? '+' : '-'} ${slDistance}點 = ${slPrice.toFixed(1)}<br>
+                💰 倉位: ${riskDollar} ÷ (${slDistance} × $${pointValue}) = ${contracts}合約<br>
+                🎯 ${gexZone.toUpperCase()} 區間，${tradeType} ${direction} 策略
+            `;
+
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // 即時更新建議 + Enter鍵
+        document.addEventListener('input', updateBufferRecommendation);
+        document.addEventListener('change', updateBufferRecommendation);
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') calculateSL();
+        });
+
+        // 初始化
+        updatePointValue();
+        updateBufferRecommendation();
+    </script>
+</body>
+</html>
