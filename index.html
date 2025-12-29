@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>GEX 動態停損計算器（慢盈BUFFER版）</title>
+    <title>GEX 動態停損計算器（慢盈BUFFER版 - 全合約支援）</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1200px; margin: 50px auto; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
         .main-container { display: flex; gap: 30px; }
@@ -41,17 +41,19 @@
                 <select id="contract" onchange="updatePointValue()">
                     <option value="MES">MES ($5/點)</option>
                     <option value="ES">ES ($50/點)</option>
+                    <option value="MNQ">MNQ ($2/點)</option>
+                    <option value="NQ">NQ ($20/點)</option>
                 </select>
             </div>
             
             <div class="input-group">
                 <label>現價:</label>
-                <input type="number" id="price" value="5025" step="0.25">
+                <input type="number" id="price" value="20500" step="0.25">
             </div>
             
             <div class="input-group">
                 <label>ATR (點):</label>
-                <input type="number" id="atr" value="12" step="0.1">
+                <input type="number" id="atr" value="180" step="0.1">
             </div>
             
             <div class="input-group">
@@ -126,9 +128,9 @@
             </div>
             
             <div class="sidebar-tip">
-                🎯 <strong>Buffer 作用：</strong><br>
-                停損距離 = GEX公式 + Buffer<br>
-                <em>多3點 = 多3點安全空間！</em>
+                🎯 <strong>全合約支援：</strong><br>
+                MES($5) • ES($50) • <strong>MNQ($2)</strong> • <strong>NQ($20)</strong><br>
+                <em>NQ納指高波動更需精準風控！</em>
             </div>
         </div>
     </div>
@@ -138,14 +140,16 @@
 
         function updatePointValue() {
             const contract = document.getElementById('contract').value;
-            pointValue = contract === 'MES' ? 5 : 50;
+            if (contract === 'MES') pointValue = 5;
+            else if (contract === 'ES') pointValue = 50;
+            else if (contract === 'MNQ') pointValue = 2;
+            else if (contract === 'NQ') pointValue = 20;  // NQ $20/點
             updateBufferRecommendation();
         }
 
         function updateBufferRecommendation() {
             const atr = parseFloat(document.getElementById('atr').value) || 12;
             const gexZone = document.getElementById('gex_zone').value;
-            const tradeType = document.getElementById('trade_type').value;
             
             let recommendation = '建議：';
             if (gexZone === 'pos') recommendation += ' <strong>1-2點</strong> (正GEX穩定)';
@@ -184,7 +188,7 @@
             const actualRisk = contracts * slDistance * pointValue;
             const perContractRisk = slDistance * pointValue;
 
-            // 【修改】確切停損價 = 進場價 ± 停損距離
+            // 確切停損價 = 進場價 ± 停損距離
             const slPrice = direction === 'short' ? price + slDistance : price - slDistance;
 
             // 顯示結果
@@ -199,13 +203,13 @@
                     <tr><th>風險項目</th><th>金額 ($)</th></tr>
                     <tr><td>你的 R 值設定</td><td><strong>${riskDollar}</strong></td></tr>
                     <tr><td>實際總風險</td><td style="color: ${actualRisk <= riskDollar ? '#00ff88' : '#ff6b6b'}">${actualRisk.toFixed(0)}</td></tr>
-                    <tr><td>每合約風險</td><td>${perContractRisk.toFixed(0)}</td></tr>
+                    <tr><td>每合約風險</td><td>$${perContractRisk.toFixed(0)} (${contract})</td></tr>
                 </table>
             `;
 
             document.getElementById('formula').innerHTML = `
                 💡 公式: ${kRisk.toFixed(1)} × ATR(${atr}) + Buffer(${buffer}) = ${slDistance}點<br>
-                📍 確切停損 = 進場價 ${direction === 'short' ? '+' : '-'} ${slDistance}點 = ${slPrice.toFixed(1)}<br>
+                📍 確切停損 = 進場價 ${direction === 'short' ? '+' : '-' } ${slDistance}點 = ${slPrice.toFixed(1)}<br>
                 💰 倉位: ${riskDollar} ÷ (${slDistance} × $${pointValue}) = ${contracts}合約<br>
                 🎯 ${gexZone.toUpperCase()} 區間，${tradeType} ${direction} 策略
             `;
